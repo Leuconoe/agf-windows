@@ -300,10 +300,7 @@ impl App {
         return self.run_on(io::stderr());
     }
 
-    fn run_on<W: io::Write>(
-        &mut self,
-        mut stream: W,
-    ) -> anyhow::Result<Option<String>> {
+    fn run_on<W: io::Write>(&mut self, mut stream: W) -> anyhow::Result<Option<String>> {
         execute!(stream, EnterAlternateScreen)?;
         let backend = CrosstermBackend::new(stream);
         let mut terminal = Terminal::new(backend)?;
