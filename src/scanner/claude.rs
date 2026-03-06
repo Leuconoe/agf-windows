@@ -66,11 +66,9 @@ fn scan_session_worktrees(claude_dir: &std::path::Path) -> HashMap<String, Strin
                 let Ok(line) = line else { continue };
                 if let Ok(val) = serde_json::from_str::<Value>(&line) {
                     if let Some(cwd) = val.get("cwd").and_then(|c| c.as_str()) {
-                        if let Some((_, wt)) = cwd.split_once("/.claude/worktrees/") {
-                            if !wt.is_empty() {
-                                map.insert(session_id.clone(), wt.to_string());
-                                break;
-                            }
+                        if let Some(wt) = extract_worktree_name(cwd) {
+                            map.insert(session_id.clone(), wt);
+                            break;
                         }
                     }
                 }
@@ -79,6 +77,18 @@ fn scan_session_worktrees(claude_dir: &std::path::Path) -> HashMap<String, Strin
     }
 
     map
+}
+
+fn extract_worktree_name(cwd: &str) -> Option<String> {
+    for marker in ["/.claude/worktrees/", "\\.claude\\worktrees\\"] {
+        if let Some((_, rest)) = cwd.split_once(marker) {
+            let name = rest.split(['/', '\\']).next().unwrap_or_default();
+            if !name.is_empty() {
+                return Some(name.to_string());
+            }
+        }
+    }
+    None
 }
 
 /// Read the current git branch from the project root's `.git/HEAD`.

@@ -504,9 +504,6 @@ pub fn handle_preview(app: &mut App, key: KeyEvent) -> InputResult {
             InputResult::Continue
         }
 
-        _ => {
-            app.mode = Mode::Browse;
-            InputResult::Continue
-        }
+        _ => InputResult::Continue,
     }
 }

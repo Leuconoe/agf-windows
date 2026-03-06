@@ -17,6 +17,34 @@ agf setup
 
 Restart your shell. Then just type `agf`.
 
+### Windows Quick Start (PowerShell)
+
+```powershell
+agf setup
+. "$PROFILE"
+```
+
+Then run `agf`.
+
+Important:
+
+- Use `agf` (the shell function), not `./agf.exe` directly.
+- Running `agf.exe` directly only prints the generated command.
+
+If you want a one-off direct invocation in PowerShell:
+
+```powershell
+Invoke-Expression (& .\agf.exe)
+```
+
+### cmd.exe (manual invocation)
+
+`cmd.exe` does not support PowerShell-style profile functions. Use one-off execution:
+
+```cmd
+for /f "usebackq delims=" %i in (`agf`) do @%i
+```
+
 ### Quick Resume (no TUI)
 
 ```bash
@@ -135,7 +163,7 @@ agf setup
 
 ## Requirements
 
-- macOS or Linux
+- macOS, Linux, or Windows (PowerShell)
 - One or more of: `claude`, `codex`, `opencode`, `pi`, `kiro-cli`, `cursor-agent`
 
 ## Contributing

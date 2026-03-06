@@ -10,10 +10,7 @@ pub fn scan() -> Result<Vec<Session>, AgfError> {
         return Ok(Vec::new());
     }
 
-    let conn = Connection::open_with_flags(
-        &db_path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )?;
+    let conn = Connection::open_with_flags(&db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
 
     // Kiro stores conversations in conversations_v2 table
     // key = project directory path, conversation_id = session UUID

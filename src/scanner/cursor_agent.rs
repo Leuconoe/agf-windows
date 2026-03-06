@@ -126,11 +126,8 @@ fn find_store_db_metadata(chats_dir: &Path, session_id: &str) -> Option<StoreMet
 
 /// Read the `meta` table from store.db, hex-decode the value, and parse as JSON.
 fn read_store_db(store_path: &Path) -> Option<StoreMeta> {
-    let conn = Connection::open_with_flags(
-        store_path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .ok()?;
+    let conn =
+        Connection::open_with_flags(store_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
 
     // The meta table typically has key-value rows with hex-encoded JSON
     let mut stmt = conn
@@ -170,8 +167,52 @@ fn hex_decode(hex: &str) -> Option<Vec<u8>> {
 /// Backtracking path decoder: dash-encoded path -> filesystem path.
 /// e.g. "Users-subinium-Desktop-my-project" -> /Users/subinium/Desktop/my-project
 fn decode_dash_path(encoded: &str) -> Option<PathBuf> {
+    use std::sync::OnceLock;
+    static ROOTS: OnceLock<Vec<PathBuf>> = OnceLock::new();
+
     let parts: Vec<&str> = encoded.split('-').collect();
-    solve(&parts, 0, Path::new("/"))
+    if parts.is_empty() {
+        return None;
+    }
+
+    let roots = ROOTS.get_or_init(decode_roots);
+    for root in roots {
+        if let Some(found) = solve(&parts, 0, root) {
+            return Some(found);
+        }
+    }
+
+    None
+}
+
+#[cfg(not(windows))]
+fn decode_roots() -> Vec<PathBuf> {
+    vec![PathBuf::from("/")]
+}
+
+#[cfg(windows)]
+fn decode_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+
+    if let Ok(system_drive) = std::env::var("SystemDrive") {
+        let drive = system_drive.trim_end_matches(['/', '\\']);
+        if !drive.is_empty() {
+            roots.push(PathBuf::from(format!("{drive}\\")));
+        }
+    }
+
+    for letter in b'A'..=b'Z' {
+        let root = format!("{}:\\", letter as char);
+        if Path::new(&root).is_dir() {
+            roots.push(PathBuf::from(root));
+        }
+    }
+
+    if roots.is_empty() {
+        roots.push(PathBuf::from(r"C:\"));
+    }
+
+    roots
 }
 
 fn solve(parts: &[&str], idx: usize, current: &Path) -> Option<PathBuf> {

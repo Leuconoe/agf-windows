@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io;
 
-use crossterm::event::{self, Event};
+use crossterm::event::{self, Event, KeyEventKind};
 use crossterm::execute;
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::prelude::*;
@@ -292,61 +292,82 @@ impl App {
 
     pub fn run(&mut self) -> anyhow::Result<Option<String>> {
         crossterm::terminal::enable_raw_mode()?;
-        let mut stderr = io::stderr();
-        execute!(stderr, EnterAlternateScreen)?;
 
-        let backend = CrosstermBackend::new(stderr);
+        #[cfg(windows)]
+        return self.run_on(io::stdout());
+
+        #[cfg(not(windows))]
+        return self.run_on(io::stderr());
+    }
+
+    fn run_on<W: io::Write>(&mut self, mut stream: W) -> anyhow::Result<Option<String>> {
+        execute!(stream, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(stream);
         let mut terminal = Terminal::new(backend)?;
-
         let result = self.event_loop(&mut terminal);
-
         crossterm::terminal::disable_raw_mode()?;
         execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-
         result
     }
 
-    fn event_loop(
+    fn event_loop<B: Backend>(
         &mut self,
-        terminal: &mut Terminal<CrosstermBackend<io::Stderr>>,
+        terminal: &mut Terminal<B>,
     ) -> anyhow::Result<Option<String>> {
+        let mut needs_draw = true;
+
         loop {
-            terminal.draw(|f| {
-                // Update viewport_height based on actual terminal size
-                let area = f.area();
-                // header(3) + footer(1) = 4 rows overhead, 1 line per session
-                let list_height = area.height.saturating_sub(4) as usize;
-                self.viewport_height = list_height.max(1);
+            if needs_draw {
+                terminal.draw(|f| {
+                    // Update viewport_height based on actual terminal size
+                    let area = f.area();
+                    // header(3) + footer(1) = 4 rows overhead, 1 line per session
+                    let list_height = area.height.saturating_sub(4) as usize;
+                    self.viewport_height = list_height.max(1);
 
-                match self.mode {
-                    Mode::Browse => render::render_browse(f, self),
-                    Mode::ActionSelect => render::render_action_select(f, self),
-                    Mode::AgentSelect => render::render_agent_select(f, self),
-                    Mode::PermissionSelect => render::render_mode_select(f, self),
-                    Mode::DeleteConfirm => render::render_delete_confirm(f, self),
-                    Mode::BulkDelete => render::render_bulk_delete(f, self),
-                    Mode::Preview => render::render_preview(f, self),
-                    Mode::Help => render::render_help(f, self),
+                    match self.mode {
+                        Mode::Browse => render::render_browse(f, self),
+                        Mode::ActionSelect => render::render_action_select(f, self),
+                        Mode::AgentSelect => render::render_agent_select(f, self),
+                        Mode::PermissionSelect => render::render_mode_select(f, self),
+                        Mode::DeleteConfirm => render::render_delete_confirm(f, self),
+                        Mode::BulkDelete => render::render_bulk_delete(f, self),
+                        Mode::Preview => render::render_preview(f, self),
+                        Mode::Help => render::render_help(f, self),
+                    }
+                })?;
+                needs_draw = false;
+            }
+
+            match event::read()? {
+                Event::Key(key) => {
+                    if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
+                        continue;
+                    }
+
+                    let result = match self.mode {
+                        Mode::Browse => input::handle_browse(self, key),
+                        Mode::ActionSelect => input::handle_action_select(self, key),
+                        Mode::AgentSelect => input::handle_agent_select(self, key),
+                        Mode::PermissionSelect => input::handle_mode_select(self, key),
+                        Mode::DeleteConfirm => input::handle_delete_confirm(self, key),
+                        Mode::BulkDelete => input::handle_bulk_delete(self, key),
+                        Mode::Preview => input::handle_preview(self, key),
+                        Mode::Help => input::handle_help(self, key),
+                    };
+
+                    match result {
+                        InputResult::Continue => {
+                            needs_draw = true;
+                        }
+                        InputResult::Quit => return Ok(None),
+                        InputResult::Execute(cmd) => return Ok(Some(cmd)),
+                    }
                 }
-            })?;
-
-            if let Event::Key(key) = event::read()? {
-                let result = match self.mode {
-                    Mode::Browse => input::handle_browse(self, key),
-                    Mode::ActionSelect => input::handle_action_select(self, key),
-                    Mode::AgentSelect => input::handle_agent_select(self, key),
-                    Mode::PermissionSelect => input::handle_mode_select(self, key),
-                    Mode::DeleteConfirm => input::handle_delete_confirm(self, key),
-                    Mode::BulkDelete => input::handle_bulk_delete(self, key),
-                    Mode::Preview => input::handle_preview(self, key),
-                    Mode::Help => input::handle_help(self, key),
-                };
-
-                match result {
-                    InputResult::Continue => {}
-                    InputResult::Quit => return Ok(None),
-                    InputResult::Execute(cmd) => return Ok(Some(cmd)),
+                Event::Resize(_, _) => {
+                    needs_draw = true;
                 }
+                _ => {}
             }
         }
     }
