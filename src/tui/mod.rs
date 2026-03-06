@@ -292,23 +292,30 @@ impl App {
 
     pub fn run(&mut self) -> anyhow::Result<Option<String>> {
         crossterm::terminal::enable_raw_mode()?;
-        let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen)?;
 
-        let backend = CrosstermBackend::new(stdout);
+        #[cfg(windows)]
+        return self.run_on(io::stdout());
+
+        #[cfg(not(windows))]
+        return self.run_on(io::stderr());
+    }
+
+    fn run_on<W: io::Write>(
+        &mut self,
+        mut stream: W,
+    ) -> anyhow::Result<Option<String>> {
+        execute!(stream, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(stream);
         let mut terminal = Terminal::new(backend)?;
-
         let result = self.event_loop(&mut terminal);
-
         crossterm::terminal::disable_raw_mode()?;
         execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-
         result
     }
 
-    fn event_loop(
+    fn event_loop<B: Backend>(
         &mut self,
-        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+        terminal: &mut Terminal<B>,
     ) -> anyhow::Result<Option<String>> {
         let mut needs_draw = true;
 

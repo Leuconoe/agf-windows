@@ -37,7 +37,7 @@ pub fn action_preview(session: &Session, action: Action) -> String {
     match action {
         Action::Resume => session.agent.resume_cmd(&session.session_id),
         Action::NewSession => "choose agent CLI...".to_string(),
-        Action::Cd => format!("cd {}", session.display_path()),
+        Action::Cd => change_dir_cmd(&session.project_path, detect_shell_kind()),
         Action::Delete => "remove session data".to_string(),
         Action::Back => "return to session list".to_string(),
     }
