@@ -335,12 +335,15 @@ const POWERSHELL_WRAPPER: &str = r#"function agf {
         Remove-Item Env:\AGF_WRAPPED -ErrorAction SilentlyContinue
     }
 
-    if ($exitCode -eq 0) {
-        $cmdLine = (Get-Content -Path $cmdFile -Raw -ErrorAction SilentlyContinue).Trim()
-        if ($cmdLine) {
-            Invoke-Expression $cmdLine
+    try {
+        if ($exitCode -eq 0) {
+            $cmdLine = (Get-Content -Path $cmdFile -Raw -ErrorAction SilentlyContinue).Trim()
+            if ($cmdLine) {
+                Invoke-Expression $cmdLine
+            }
         }
     }
-
-    Remove-Item $cmdFile -ErrorAction SilentlyContinue
+    finally {
+        Remove-Item $cmdFile -ErrorAction SilentlyContinue
+    }
 }"#;

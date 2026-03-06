@@ -31,10 +31,11 @@ Important:
 - Use `agf` (the shell function), not `./agf.exe` directly.
 - Running `agf.exe` directly only prints the generated command.
 
-If you want a one-off direct invocation in PowerShell:
+If you want a one-off setup just for the current PowerShell session:
 
 ```powershell
-Invoke-Expression (& .\agf.exe)
+agf init powershell | Invoke-Expression
+agf
 ```
 
 ### cmd.exe (manual invocation)
