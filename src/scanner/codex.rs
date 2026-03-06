@@ -2,10 +2,13 @@ use std::collections::HashMap;
 use std::fs;
 
 use serde::Deserialize;
+use serde_json::Value;
 use walkdir::WalkDir;
 
 use crate::error::AgfError;
 use crate::model::{Agent, Session};
+
+use super::truncate;
 
 #[derive(Deserialize)]
 struct SessionMeta {
@@ -105,7 +108,10 @@ pub fn scan() -> Result<Vec<Session>, AgfError> {
 
         let git_branch = payload.git.and_then(|g| g.branch);
 
-        let session_summaries = summaries.get(&session_id).cloned().unwrap_or_default();
+        let mut session_summaries = summaries.get(&session_id).cloned().unwrap_or_default();
+        if session_summaries.is_empty() {
+            session_summaries = extract_summaries_from_session_jsonl(&content);
+        }
 
         sessions.push(Session {
             agent: Agent::Codex,
@@ -160,4 +166,89 @@ fn read_history_summaries(codex_dir: &std::path::Path) -> HashMap<String, Vec<St
             (k, v.into_iter().map(|(_, s)| s).collect())
         })
         .collect()
+}
+
+fn extract_summaries_from_session_jsonl(content: &str) -> Vec<String> {
+    let mut out = Vec::new();
+
+    for line in content.lines().take(200) {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        let value: Value = match serde_json::from_str(line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        if value.get("type").and_then(|v| v.as_str()) != Some("response_item") {
+            continue;
+        }
+
+        let Some(payload) = value.get("payload") else {
+            continue;
+        };
+
+        if payload.get("type").and_then(|v| v.as_str()) != Some("message") {
+            continue;
+        }
+        if payload.get("role").and_then(|v| v.as_str()) != Some("user") {
+            continue;
+        }
+
+        let Some(parts) = payload.get("content").and_then(|v| v.as_array()) else {
+            continue;
+        };
+
+        for part in parts {
+            if part.get("type").and_then(|v| v.as_str()) != Some("input_text") {
+                continue;
+            }
+            let Some(text) = part.get("text").and_then(|v| v.as_str()) else {
+                continue;
+            };
+
+            let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
+            if normalized.is_empty() {
+                continue;
+            }
+
+            out.push(truncate(&normalized, 100));
+            if out.len() >= 3 {
+                return out;
+            }
+        }
+    }
+
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_summaries_from_session_jsonl;
+
+    #[test]
+    fn extracts_user_input_text_from_response_items() {
+        let jsonl = r#"
+{"type":"session_meta","payload":{"id":"s1"}}
+{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"ignore"}]}}
+{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"first title line"}]}}
+{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"second title line"}]}}
+"#;
+
+        let got = extract_summaries_from_session_jsonl(jsonl);
+        assert_eq!(got, vec!["first title line", "second title line"]);
+    }
+
+    #[test]
+    fn returns_empty_when_no_user_input_text_exists() {
+        let jsonl = r#"
+{"type":"session_meta","payload":{"id":"s1"}}
+{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"ignore"}]}}
+"#;
+
+        let got = extract_summaries_from_session_jsonl(jsonl);
+        assert!(got.is_empty());
+    }
 }

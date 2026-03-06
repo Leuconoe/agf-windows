@@ -29,7 +29,7 @@ struct Cli {
 enum Commands {
     /// Output shell wrapper function for the given shell
     Init {
-        /// Shell type: zsh, bash, or fish
+        /// Shell type: zsh, bash, fish, or powershell
         shell: String,
     },
     /// Auto-detect shell and add agf to your shell config
@@ -66,7 +66,7 @@ fn main() -> anyhow::Result<()> {
 
             let best = &sessions[results[0].index];
             if let Some(cmd) = action::generate_command(best, model::Action::Resume, None) {
-                println!("{cmd}");
+                emit_command(&cmd)?;
             }
             return Ok(());
         }
@@ -105,8 +105,21 @@ fn main() -> anyhow::Result<()> {
     }
     if let Some(cmd) = app.run()? {
         // Print command to stdout — the shell wrapper evals it in the real terminal
-        println!("{cmd}");
+        emit_command(&cmd)?;
     }
 
+    Ok(())
+}
+
+fn emit_command(cmd: &str) -> anyhow::Result<()> {
+    #[cfg(windows)]
+    {
+        if let Some(path) = std::env::var_os("AGF_COMMAND_FILE") {
+            std::fs::write(path, cmd)?;
+            return Ok(());
+        }
+    }
+
+    println!("{cmd}");
     Ok(())
 }

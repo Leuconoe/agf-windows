@@ -66,14 +66,20 @@ impl Agent {
 
     /// Shell command to resume the most recent session.
     pub fn resume_cmd(&self, session_id: &str) -> String {
+        #[cfg(windows)]
+        let quoted_session_id = format!("\"{}\"", session_id.replace('"', "\"\""));
+
+        #[cfg(not(windows))]
+        let quoted_session_id = format!("'{}'", session_id.replace('\'', "'\\''"));
+
         match self {
-            Agent::ClaudeCode => format!("claude --resume '{session_id}'"),
-            Agent::Codex => format!("codex resume '{session_id}'"),
-            Agent::OpenCode => format!("opencode -s '{session_id}'"),
+            Agent::ClaudeCode => format!("claude --resume {quoted_session_id}"),
+            Agent::Codex => format!("codex resume {quoted_session_id}"),
+            Agent::OpenCode => format!("opencode -s {quoted_session_id}"),
             Agent::Pi => "pi --resume".to_string(),
             Agent::Kiro => "kiro-cli chat --resume".to_string(),
-            Agent::CursorAgent => format!("cursor-agent --resume '{session_id}'"),
-            Agent::Gemini => format!("gemini --resume '{session_id}'"),
+            Agent::CursorAgent => format!("cursor-agent --resume {quoted_session_id}"),
+            Agent::Gemini => format!("gemini --resume {quoted_session_id}"),
         }
     }
 

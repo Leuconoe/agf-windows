@@ -1129,7 +1129,7 @@ pub fn render_preview(f: &mut Frame, app: &App) {
 
     f.render_widget(
         Paragraph::new(Span::styled(
-            " enter actions │ esc/← back │ any key back",
+            " enter actions │ esc/← back",
             Style::new().fg(GRAY_500),
         )),
         chunks[7],
