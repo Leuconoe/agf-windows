@@ -117,10 +117,12 @@ fn join_commands(first: &str, second: &str, shell: ShellKind) -> String {
     }
 }
 
+#[cfg(windows)]
 fn shell_escape_powershell(s: &str) -> String {
     format!("'{}'", s.replace('\'', "''"))
 }
 
+#[cfg(windows)]
 fn shell_escape_cmd(s: &str) -> String {
     format!("\"{}\"", s.replace('"', "\"\""))
 }
