@@ -167,13 +167,17 @@ fn hex_decode(hex: &str) -> Option<Vec<u8>> {
 /// Backtracking path decoder: dash-encoded path -> filesystem path.
 /// e.g. "Users-subinium-Desktop-my-project" -> /Users/subinium/Desktop/my-project
 fn decode_dash_path(encoded: &str) -> Option<PathBuf> {
+    use std::sync::OnceLock;
+    static ROOTS: OnceLock<Vec<PathBuf>> = OnceLock::new();
+
     let parts: Vec<&str> = encoded.split('-').collect();
     if parts.is_empty() {
         return None;
     }
 
-    for root in decode_roots() {
-        if let Some(found) = solve(&parts, 0, &root) {
+    let roots = ROOTS.get_or_init(decode_roots);
+    for root in roots {
+        if let Some(found) = solve(&parts, 0, root) {
             return Some(found);
         }
     }

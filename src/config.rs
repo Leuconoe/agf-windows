@@ -60,7 +60,7 @@ fn command_exists(binary: &str) -> bool {
     if candidate.components().count() > 1 {
         return executable_candidates(candidate)
             .iter()
-            .any(|path| path.is_file());
+            .any(|path| is_executable(path));
     }
 
     let Some(path_var) = env::var_os("PATH") else {
@@ -71,13 +71,27 @@ fn command_exists(binary: &str) -> bool {
         let base = dir.join(binary);
         if executable_candidates(&base)
             .iter()
-            .any(|path| path.is_file())
+            .any(|path| is_executable(path))
         {
             return true;
         }
     }
 
     false
+}
+
+#[cfg(not(windows))]
+fn is_executable(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    path.metadata()
+        // 0o111 = --x--x--x: execute bit set for user, group, or other
+        .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
+#[cfg(windows)]
+fn is_executable(path: &Path) -> bool {
+    path.is_file()
 }
 
 fn executable_candidates(base: &Path) -> Vec<PathBuf> {
